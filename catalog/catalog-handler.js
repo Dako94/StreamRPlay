@@ -1,102 +1,101 @@
-const axios = require("axios");
-const cheerio = require("cheerio");
+const { addonBuilder } = require("stremio-addon-sdk");
+const fetch = require("node-fetch");
 
-async function searchRaiPlay(query) {
-  try {
-    const url = `https://www.raiplay.it/ricerca.html?q=${encodeURIComponent(query)}`;
-    const response = await axios.get(url, {
-      headers: { "User-Agent": "Mozilla/5.0" }
-    });
+const manifest = {
+    id: "org.raiplay",
+    version: "1.0.0",
+    name: "RaiPlay Addon",
+    resources: ["catalog", "meta"],
+    types: ["tv", "movie"],
+    catalogs: [
+        { type: "tv", id: "raiplay_tv", name: "RaiPlay Serie TV" },
+        { type: "movie", id: "raiplay_movie", name: "RaiPlay Film" }
+    ]
+};
 
-    const $ = cheerio.load(response.data);
-    const metas = [];
+const builder = new addonBuilder(manifest);
 
-    $(".search-result__item").each((i, el) => {
-      const title = $(el).find(".search-result__title").text().trim();
-      const desc = $(el).find(".search-result__description").text().trim();
-      const poster = $(el).find("img").attr("src");
-      const href = $(el).find("a").attr("href"); // es: /programmi/pocoyo
-      const id = href ? href.replace("/programmi/", "").replace(".html", "") : null;
+// Catalogo
+builder.defineCatalogHandler(async ({ type, id, extra }) => {
+    const searchQuery = extra && extra.search ? extra.search : "";
+    const url = `https://www.raiplay.it/ricerca?json&q=${encodeURIComponent(searchQuery)}`;
 
-      if (id) {
-        metas.push({
-          id,
-          type: "series", // in RaiPlay la maggior parte è “serie”, ma puoi cambiare se serve
-          name: title,
-          description: desc,
-          poster: poster ? `https:${poster}` : null
-        });
-      }
-    });
+    try {
+        const res = await fetch(url);
+        const data = await res.json();
 
-    return metas;
-  } catch (err) {
-    console.error("Errore in searchRaiPlay:", err.message);
-    return [];
-  }
-}
+        const metas = data.results
+            .filter(item => (type === "tv" ? item.category === "Serie TV" : item.category !== "Serie TV"))
+            .map(item => ({
+                id: item.id,
+                type: item.category === "Serie TV" ? "tv" : "movie",
+                name: item.title,
+                poster: item.image || "",
+                description: item.description || ""
+            }));
 
-async function getCatalog(type, id, extra, userId) {
-  if (id === "raiplay_search" && extra.search) {
-    const results = await searchRaiPlay(extra.search);
-    return { metas: results };
-  }
-  return { metas: [] };
-}
-
-module.exports = { getCatalog };            const response = await axios.get(url, {
-                headers: auth.getAuthenticatedHeaders(),
-                timeout: 10000
-            });
-
-            return this.parseContentList(response.data, 'series', skip);
-        } catch (error) {
-            // Fallback: scraping dalla pagina web
-            return await this.scrapeNewSeries(skip);
-        }
+        return { metas };
+    } catch (err) {
+        console.error("Errore catalogo RaiPlay:", err);
+        return { metas: [] };
     }
+});
 
-    // Fiction RAI
-    async getRaiFiction(extra = {}) {
-        const url = `${this.baseUrl}/fiction`;
-        const skip = parseInt(extra.skip) || 0;
-        
-        try {
-            const response = await axios.get(url, {
-                headers: auth.getAuthenticatedHeaders(),
-                timeout: 10000
+// Meta dettagli (stagioni e episodi)
+builder.defineMetaHandler(async ({ type, id }) => {
+    try {
+        const jsonUrl = `https://www.raiplay.it/video/${id}.html?json`;
+        const res = await fetch(jsonUrl);
+        const data = await res.json();
+
+        if (type === "tv" && data && data.video && data.video.episodes) {
+            const seasons = {};
+            data.video.episodes.forEach(ep => {
+                const seasonNum = ep.season || 1;
+                if (!seasons[seasonNum]) seasons[seasonNum] = [];
+                seasons[seasonNum].push({
+                    id: ep.id,
+                    name: ep.title,
+                    episode: ep.episode || 1,
+                    season: seasonNum,
+                    poster: ep.image || "",
+                    description: ep.description || ""
+                });
             });
 
-            const $ = cheerio.load(response.data);
-            const metas = [];
+            const streams = Object.keys(seasons).map(season => ({
+                season: parseInt(season),
+                episodes: seasons[season]
+            }));
 
-            $('.slider-item, .card-container, .content-item').each((i, element) => {
-                if (i < skip) return;
-                if (metas.length >= 20) return;
-
-                const $el = $(element);
-                const link = $el.find('a').first().attr('href');
-                const title = $el.find('h3, .title, .card-title').first().text().trim();
-                const image = $el.find('img').first().attr('src') || $el.find('img').first().attr('data-src');
-                const description = $el.find('.description, .card-text, p').first().text().trim();
-
-                if (link && title) {
-                    const id = this.extractIdFromUrl(link);
-                    if (id) {
-                        metas.push({
-                            id: `raiplay:${id}`,
-                            type: 'series',
-                            name: title,
-                            poster: this.normalizeImageUrl(image),
-                            description: description || '',
-                            genres: genreMapper.extractGenresFromText(title + ' ' + description)
-                        });
-                    }
+            return {
+                meta: {
+                    id,
+                    type: "tv",
+                    name: data.video.title,
+                    poster: data.video.image || "",
+                    description: data.video.description || "",
+                    streams
                 }
-            });
+            };
+        } else {
+            return {
+                meta: {
+                    id,
+                    type: "movie",
+                    name: data.video.title,
+                    poster: data.video.image || "",
+                    description: data.video.description || ""
+                }
+            };
+        }
+    } catch (err) {
+        console.error("Errore meta RaiPlay:", err);
+        return { meta: null };
+    }
+});
 
-            return metas;
-        } catch (error) {
+module.exports = builder.getInterface();        } catch (error) {
             logger.error(`Errore nel recupero fiction RAI: ${error.message}`);
             return [];
         }
