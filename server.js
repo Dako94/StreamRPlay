@@ -14,7 +14,7 @@ const logger = require('./utils/logger');
 const cache = require('./utils/cache');
 
 // Inizializzazione addon
-const builder = new addonSDK.addonBuilder(manifest);
+const builder = new addonSDK.AddonBuilder(manifest);
 
 // Middleware per logging delle richieste
 function requestLogger(req, res, next) {
