@@ -1,102 +1,44 @@
-const videoExtractor = require('./video-extractor');
-const auth = require('../auth/raiplay-auth');
-const cache = require('../utils/cache');
-const logger = require('../utils/logger');
+const axios = require("axios");
+const cheerio = require("cheerio");
 
-class StreamHandler {
-    constructor() {
-        this.cacheTimeout = 300000; // 5 minuti per gli stream
+async function getStreams(type, id, extra, userId) {
+  try {
+    const url = `https://www.raiplay.it/programmi/${id}`;
+    const response = await axios.get(url, {
+      headers: { "User-Agent": "Mozilla/5.0" }
+    });
+
+    const $ = cheerio.load(response.data);
+
+    // RaiPlay mette i dati video in uno script JSON
+    let videoUrl = null;
+    $('script').each((i, script) => {
+      const content = $(script).html();
+      if (content && content.includes(".m3u8")) {
+        const match = content.match(/(https.*?\.m3u8)/);
+        if (match) videoUrl = match[1];
+      }
+    });
+
+    if (videoUrl) {
+      return {
+        streams: [
+          {
+            title: "RaiPlay",
+            url: videoUrl
+          }
+        ]
+      };
+    } else {
+      return { streams: [] };
     }
+  } catch (err) {
+    console.error("Errore in getStreams:", err.message);
+    return { streams: [] };
+  }
+}
 
-    // Handler principale per gli stream
-    async getStreams(type, id, config = {}, userId = 'default') {
-        const cacheKey = `stream_${id}_${userId}`;
-        
-        // Controlla cache (più breve per gli stream)
-        const cached = cache.get(cacheKey);
-        if (cached) {
-            logger.info(`Cache hit per stream: ${id}`);
-            return cached;
-        }
-
-        try {
-            let streams = [];
-
-            if (id.startsWith('raiplay:live:')) {
-                // Gestione canali live
-                streams = await this.getLiveStream(id, config, userId);
-            } else if (id.startsWith('raiplay:')) {
-                // Gestione contenuti on-demand
-                streams = await this.getOnDemandStream(id, config, userId);
-            }
-
-            const result = { streams };
-            
-            // Cache più breve per gli stream
-            cache.set(cacheKey, result, this.cacheTimeout);
-            
-            return result;
-
-        } catch (error) {
-            logger.error(`Errore nel recupero stream per ${id}: ${error.message}`);
-            return { streams: [] };
-        }
-    }
-
-    // Stream per contenuti live
-    async getLiveStream(id, config = {}, userId = 'default') {
-        const channelId = id.replace('raiplay:live:', '');
-        
-        try {
-            // Mappa dei canali live
-            const liveChannels = {
-                'rai1': 'https://mediapolis.rai.it/relinker/relinkerServlet.htm?cont=2606803',
-                'rai2': 'https://mediapolis.rai.it/relinker/relinkerServlet.htm?cont=2606804',
-                'rai3': 'https://mediapolis.rai.it/relinker/relinkerServlet.htm?cont=2606805',
-                'rai4': 'https://mediapolis.rai.it/relinker/relinkerServlet.htm?cont=308718',
-                'rai5': 'https://mediapolis.rai.it/relinker/relinkerServlet.htm?cont=395276',
-                'raimovie': 'https://mediapolis.rai.it/relinker/relinkerServlet.htm?cont=308709',
-                'raipremium': 'https://mediapolis.rai.it/relinker/relinkerServlet.htm?cont=308710',
-                'raiyoyo': 'https://mediapolis.rai.it/relinker/relinkerServlet.htm?cont=746953',
-                'raigulp': 'https://mediapolis.rai.it/relinker/relinkerServlet.htm?cont=746954'
-            };
-
-            const streamUrl = liveChannels[channelId];
-            if (!streamUrl) {
-                throw new Error(`Canale live non trovato: ${channelId}`);
-            }
-
-            // Estrae l'URL finale del flusso M3U8
-            const finalStreamUrl = await videoExtractor.extractLiveStreamUrl(streamUrl, userId);
-            
-            if (finalStreamUrl) {
-                const streams = [{
-                    url: finalStreamUrl,
-                    title: `${channelId.toUpperCase()} Live`,
-                    behaviorHints: {
-                        notWebReady: true,
-                        bingeGroup: `raiplay_live_${channelId}`
-                    }
-                }];
-
-                // Aggiungi sottotitoli se disponibili e richiesti
-                if (config.enable_subtitles) {
-                    const subtitles = await this.getSubtitles(id, userId);
-                    if (subtitles.length > 0) {
-                        streams[0].subtitles = subtitles;
-                    }
-                }
-
-                return streams;
-            }
-
-            return [];
-
-        } catch (error) {
-            logger.error(`Errore nel recupero stream live ${channelId}: ${error.message}`);
-            return [];
-        }
-    }
+module.exports = { getStreams };    }
 
     // Stream per contenuti on-demand
     async getOnDemandStream(id, config = {}, userId = 'default') {
