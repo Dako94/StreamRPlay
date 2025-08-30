@@ -1,4 +1,4 @@
-const { addonBuilder } = require('stremio-addon-sdk');
+const { addonBuilder, serveHTTP } = require('stremio-addon-sdk');
 
 const manifest = {
     id: 'com.raiplay.stremio.addon',
@@ -60,9 +60,26 @@ builder.defineStreamHandler(async (args) => {
     return { streams: streams };
 });
 
+// Usa serveHTTP se disponibile
 const PORT = process.env.PORT || 3000;
 
-builder.runHTTPWithOptions({ port: PORT }, () => {
-    console.log('RaiPlay Addon running on port ' + PORT);
-    console.log('Manifest: http://localhost:' + PORT + '/manifest.json');
-});
+if (serveHTTP) {
+    serveHTTP(builder.getInterface(), { port: PORT });
+} else {
+    // Fallback con server custom
+    const express = require('express');
+    const app = express();
+    
+    const addonInterface = builder.getInterface();
+    
+    app.get('/manifest.json', addonInterface.get || ((req, res) => res.json(manifest)));
+    app.get('/catalog/:type/:id.json', addonInterface.get || ((req, res) => res.json({ metas: [] })));
+    app.get('/stream/:type/:id.json', addonInterface.get || ((req, res) => res.json({ streams: [] })));
+    
+    app.listen(PORT, () => {
+        console.log('RaiPlay Addon running on port ' + PORT);
+    });
+}
+
+console.log('RaiPlay Addon starting on port ' + PORT);
+console.log('Manifest URL: http://localhost:' + PORT + '/manifest.json');
