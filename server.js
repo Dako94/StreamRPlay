@@ -353,7 +353,6 @@ async function getMetaDataFromRaiPlay(type, id) {
         logger.logError(error, 'getMetaDataFromRaiPlay');
         return null;
     }
-
-
+}
 // Export per testing
 module.exports = app;
