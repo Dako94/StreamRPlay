@@ -130,6 +130,7 @@ builder.defineStreamHandler(async (args) => {
     }
 });
 
+
 // Configurazione Express
 const app = express();
 
@@ -297,6 +298,62 @@ const server = app.listen(PORT, HOST, () => {
         loggingLevel: config.logging.level
     });
 });
+
+// Funzione per recuperare i metadati da RaiPlay
+const axios = require('axios');
+const cheerio = require('cheerio');
+
+async function getMetaDataFromRaiPlay(type, id) {
+    try {
+        const url = `https://www.raiplay.it/programmi/${id}`;
+        const response = await axios.get(url);
+        const $ = cheerio.load(response.data);
+
+        const name = $('h1').text().trim();
+        const description = $('meta[name="description"]').attr('content');
+        const poster = $('meta[property="og:image"]').attr('content');
+        const background = poster;
+
+        if (type === 'movie') {
+            return {
+                id: id,
+                type: 'movie',
+                name: name,
+                poster: poster,
+                background: background,
+                description: description,
+                // Campi aggiuntivi (esempio)
+                releaseInfo: '2023', // Da personalizzare
+                runtime: 120, // Da personalizzare
+                genres: ['Drammatico'], // Da personalizzare
+            };
+        } else if (type === 'series') {
+            return {
+                id: id,
+                type: 'series',
+                name: name,
+                poster: poster,
+                background: background,
+                description: description,
+                // Campi aggiuntivi (esempio)
+                episodes: [], // Da popolare con episodi reali
+            };
+        } else if (type === 'channel') {
+            return {
+                id: id,
+                type: 'channel',
+                name: name,
+                logo: poster,
+                description: description,
+            };
+        } else {
+            return null;
+        }
+    } catch (error) {
+        logger.logError(error, 'getMetaDataFromRaiPlay');
+        return null;
+    }
+
 
 // Export per testing
 module.exports = app;
