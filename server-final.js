@@ -1,12 +1,12 @@
 const { addonBuilder, serveHTTP } = require('stremio-addon-sdk');
-const catalogHandler = require('./catalog-handler');   // il tuo handler dinamico
-const streamHandler = require('./stream-handler');     // il tuo handler dinamico
+const catalogHandler = require('./catalog/catalog-handler');   // il tuo handler dinamico
+const streamHandler = require('./stream/stream-handler');     // il tuo handler dinamico
 
 // Manifest dell'addon
 const manifest = {
     id: 'com.raiplay.stremio.addon',
     version: '1.2.0',
-    name: 'RaiPlay Italiano',
+    name: 'DakoRPlay 🇮🇹',
     description: 'Accedi a tutti i contenuti RaiPlay direttamente su Stremio',
     logo: 'https://www.rai.it/dl/images/2021/12/17/1639751569406_rai-play.png',
     resources: ['catalog', 'stream', 'meta'],
