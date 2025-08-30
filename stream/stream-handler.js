@@ -1,5 +1,5 @@
 const { addonBuilder } = require("stremio-addon-sdk");
-const videoExtractor = require("./stream/video-extractor"); // il tuo helper per estrarre stream
+const videoExtractor = require("./video-extractor"); // il tuo helper per estrarre stream
 
 const manifest = {
     id: "org.raiplay",
