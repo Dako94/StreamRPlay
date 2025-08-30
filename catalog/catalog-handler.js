@@ -1,5 +1,5 @@
 const fetch = require('node-fetch');
-const genreMapper = require('../catalog/genre-mapper'); // Assicurati che il percorso sia corretto
+const genreMapper = require('./genre-mapper'); // Assicurati che il percorso sia corretto
 
 // Catalog handler dinamico
 module.exports = async function catalogHandler(args) {
