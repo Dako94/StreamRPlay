@@ -65,8 +65,7 @@ builder.defineCatalogHandler(async (args) => {
         ];
 
         return { 
-            metas: metas.slice(0, 20), // Limita a 20
-            cacheMaxAge: 3600 // Cache 1 ora
+            metas: metas.slice(0, 20)
         };
     } catch (error) {
         console.error('❌ Catalog error:', error);
@@ -85,18 +84,50 @@ builder.defineStreamHandler(async (args) => {
         if (args.id.includes('montalbano')) {
             streams.push({
                 url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
-                title: 'Il Commissario Montalbano - Episodio Test',
-                behaviorHints: {
-                    notWebReady: true,
-                    bingeGroup: 'montalbano'
-                }
+                title: 'Il Commissario Montalbano - Episodio Test'
             });
         } else if (args.id.includes('doc')) {
             streams.push({
                 url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4',
-                title: 'Doc - Nelle tue mani - Episodio Test',
-                behaviorHints: {
-                    notWebReady: true,
+                title: 'Doc - Nelle tue mani - Episodio Test'
+            });
+        } else {
+            streams.push({
+                url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4',
+                title: 'RaiPlay Stream (Test)'
+            });
+        }
+
+        return { 
+            streams: streams
+        };
+    } catch (error) {
+        console.error('❌ Stream error:', error);
+        return { streams: [] };
+    }
+});
+
+// Usa il server HTTP integrato dell'SDK
+const PORT = process.env.PORT || 3000;
+
+builder.runHTTPWithOptions({ port: PORT }, () => {
+    console.log(`🚀 RaiPlay Addon running on port ${PORT}`);
+    console.log(`📺 Manifest URL: http://localhost:${PORT}/manifest.json`);
+    console.log(`🏥 Add to Stremio: http://localhost:${PORT}/manifest.json`);
+});
+
+// Gestione segnali di chiusura
+process.on('SIGTERM', () => {
+    console.log('🛑 SIGTERM received, shutting down gracefully');
+    process.exit(0);
+});
+
+process.on('SIGINT', () => {
+    console.log('🛑 SIGINT received, shutting down gracefully');  
+    process.exit(0);
+});
+
+console.log('🎭 RaiPlay Addon initializing...');                    notWebReady: true,
                     bingeGroup: 'doc'
                 }
             });
