@@ -2,10 +2,10 @@
   "name": "stremio-raiplay-addon",
   "version": "1.2.0",
   "description": "Addon Stremio per accedere ai contenuti RaiPlay",
-  "main": "server-ultra-simple.js",
+  "main": "server-clean.js",
   "scripts": {
-    "start": "node server-ultra-simple.js",
-    "dev": "nodemon server-ultra-simple.js"
+    "start": "node server-clean.js",
+    "dev": "nodemon server-clean.js"
   },
   "keywords": [
     "stremio", 
