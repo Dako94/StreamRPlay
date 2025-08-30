@@ -1,6 +1,9 @@
 const addonSDK = require('stremio-addon-sdk');
 const express = require('express');
 const cors = require('cors');
+const axios = require('axios');
+const cheerio = require('cheerio');
+
 // Import dei moduli dell'addon
 const manifest = require('./manifest');
 const catalogHandler = require('./catalog/catalog-handler');
@@ -9,8 +12,10 @@ const auth = require('./auth/raiplay-auth');
 const config = require('./utils/config');
 const logger = require('./utils/logger');
 const cache = require('./utils/cache');
+
 // Inizializzazione addon
 const builder = new addonSDK.addonBuilder(manifest);
+
 // Middleware per logging delle richieste
 function requestLogger(req, res, next) {
     const start = Date.now();
@@ -22,6 +27,7 @@ function requestLogger(req, res, next) {
 
     next();
 }
+
 // Middleware per parsing configurazione utente
 function parseUserConfig(req, res, next) {
     try {
@@ -49,6 +55,7 @@ function parseUserConfig(req, res, next) {
         next();
     }
 }
+
 // Middleware per autenticazione automatica
 async function autoAuth(req, res, next) {
     try {
@@ -72,6 +79,7 @@ async function autoAuth(req, res, next) {
         next();
     }
 }
+
 // Handler per i cataloghi
 builder.defineCatalogHandler(async (args) => {
     const startTime = Date.now();
@@ -87,13 +95,14 @@ builder.defineCatalogHandler(async (args) => {
 
         return {
             metas: result.metas || [],
-            cacheMaxAge: 3600
+            cacheMaxAge: 3600 // 1 ora
         };
     } catch (error) {
         logger.logError(error, 'catalogHandler');
         return { metas: [] };
     }
 });
+
 // Handler per gli stream
 builder.defineStreamHandler(async (args) => {
     const startTime = Date.now();
@@ -114,7 +123,7 @@ builder.defineStreamHandler(async (args) => {
 
         return {
             streams: result.streams || [],
-            cacheMaxAge: 300
+            cacheMaxAge: 300 // 5 minuti
         };
     } catch (error) {
         logger.logError(error, 'streamHandler');
@@ -142,13 +151,69 @@ builder.defineMetaHandler(async (args) => {
 
         return {
             meta: metaData,
-            cacheMaxAge: 3600
+            cacheMaxAge: 3600 // 1 ora
         };
     } catch (error) {
         logger.logError(error, 'metaHandler');
         return { meta: null };
     }
 });
+
+// Funzione per recuperare i metadati da RaiPlay
+async function getMetaDataFromRaiPlay(type, id) {
+    try {
+        const url = `https://www.raiplay.it/programmi/${id}`;
+        const response = await axios.get(url, {
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+            }
+        });
+        const $ = cheerio.load(response.data);
+
+        const name = $('h1').text().trim();
+        const description = $('meta[name="description"]').attr('content');
+        const poster = $('meta[property="og:image"]').attr('content');
+        const background = poster;
+
+        if (type === 'movie') {
+            return {
+                id: id,
+                type: 'movie',
+                name: name,
+                poster: poster,
+                background: background,
+                description: description,
+                releaseInfo: '2023', // Esempio: da personalizzare
+                runtime: 120, // Esempio: da personalizzare
+                genres: ['Drammatico'], // Esempio: da personalizzare
+            };
+        } else if (type === 'series') {
+            return {
+                id: id,
+                type: 'series',
+                name: name,
+                poster: poster,
+                background: background,
+                description: description,
+                episodes: [], // Da popolare con episodi reali
+            };
+        } else if (type === 'channel') {
+            return {
+                id: id,
+                type: 'channel',
+                name: name,
+                logo: poster,
+                description: description,
+            };
+        } else {
+            return null;
+        }
+    } catch (error) {
+        logger.logError(error, 'getMetaDataFromRaiPlay');
+        return null;
+    }
+}
+
 // Configurazione Express
 const app = express();
 // CORS
@@ -161,8 +226,9 @@ app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 // Middleware personalizzati
 app.use(parseUserConfig);
 app.use(autoAuth);
-// Mount dell'addon Stremio
+// === MONTA L'INTERFACCIA DELL'ADDON (DOPO TUTTI GLI HANDLER) ===
 app.use('/', builder.getInterface());
+
 // Route aggiuntive
 // Health check
 app.get('/health', (req, res) => {
@@ -185,6 +251,7 @@ app.get('/health', (req, res) => {
     logger.health('healthy', health);
     res.json(health);
 });
+
 // Statistiche addon
 app.get('/stats', (req, res) => {
     const stats = {
@@ -196,12 +263,14 @@ app.get('/stats', (req, res) => {
 
     res.json(stats);
 });
+
 // Pulizia cache manuale
 app.post('/admin/clear-cache', (req, res) => {
     cache.clear();
     logger.info('Cache cleared manually');
     res.json({ message: 'Cache cleared successfully' });
 });
+
 // Test autenticazione
 app.post('/admin/test-auth', async (req, res) => {
     const { email, password } = req.body;
@@ -217,6 +286,7 @@ app.post('/admin/test-auth', async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 });
+
 // Route per configurazione dinamica
 app.get('/configure/:config?', (req, res) => {
     const baseUrl = `${req.protocol}://${req.get('host')}`;
@@ -232,6 +302,7 @@ app.get('/configure/:config?', (req, res) => {
 
     res.json(configManifest);
 });
+
 // Gestione errori globale
 app.use((err, req, res, next) => {
     logger.logError(err, 'globalErrorHandler');
@@ -241,11 +312,13 @@ app.use((err, req, res, next) => {
         message: config.server.env === 'development' ? err.message : 'Something went wrong'
     });
 });
+
 // 404 handler
 app.use('*', (req, res) => {
     logger.warn(`404 - Route not found: ${req.originalUrl}`);
     res.status(404).json({ error: 'Route not found' });
 });
+
 // Graceful shutdown
 process.on('SIGTERM', gracefulShutdown);
 process.on('SIGINT', gracefulShutdown);
@@ -268,6 +341,7 @@ function gracefulShutdown(signal) {
         process.exit(1);
     }, 30000);
 }
+
 // Gestione errori non catturati
 process.on('uncaughtException', (err) => {
     logger.logError(err, 'uncaughtException');
@@ -277,59 +351,6 @@ process.on('unhandledRejection', (reason, promise) => {
     logger.error('Unhandled Rejection at Promise', { reason, promise });
     process.exit(1);
 });
-
-// === FUNZIONE PER RECUPERO METADATI (AGGIUNTA) ===
-const axios = require('axios');
-const cheerio = require('cheerio');
-async function getMetaDataFromRaiPlay(type, id) {
-    try {
-        const url = `https://www.raiplay.it/programmi/${id}`;
-        const response = await axios.get(url);
-        const $ = cheerio.load(response.data);
-
-        const name = $('h1').text().trim();
-        const description = $('meta[name="description"]').attr('content');
-        const poster = $('meta[property="og:image"]').attr('content');
-        const background = poster;
-
-        if (type === 'movie') {
-            return {
-                id: id,
-                type: 'movie',
-                name: name,
-                poster: poster,
-                background: background,
-                description: description,
-                releaseInfo: '2023',
-                runtime: 120,
-                genres: ['Drammatico'],
-            };
-        } else if (type === 'series') {
-            return {
-                id: id,
-                type: 'series',
-                name: name,
-                poster: poster,
-                background: background,
-                description: description,
-                episodes: [],
-            };
-        } else if (type === 'channel') {
-            return {
-                id: id,
-                type: 'channel',
-                name: name,
-                logo: poster,
-                description: description,
-            };
-        } else {
-            return null;
-        }
-    } catch (error) {
-        logger.logError(error, 'getMetaDataFromRaiPlay');
-        return null;
-    }
-}
 
 // Avvio server
 const PORT = config.server.port;
