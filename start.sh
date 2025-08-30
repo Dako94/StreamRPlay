@@ -90,4 +90,4 @@ else
     
     # Attendi il processo
     wait $NODE_PID
-fifi
+fi
