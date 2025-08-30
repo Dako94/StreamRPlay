@@ -26,8 +26,7 @@ fi
 
 # Verifica che tutti i file necessari esistano
 REQUIRED_FILES=(
-    "server-fixed.js"
-    "manifest.js"
+    "server-ultra-simple.js"
 )
 
 for file in "${REQUIRED_FILES[@]}"; do
@@ -85,7 +84,7 @@ if [ "$NODE_ENV" = "production" ] && command -v pm2 &> /dev/null; then
     pm2 logs raiplay-addon --follow
 else
     # Avvio standard con Node.js
-    node server-fixed.js &
+    node server-ultra-simple.js &
     NODE_PID=$!
     
     # Attendi il processo
