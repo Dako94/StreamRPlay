@@ -1,5 +1,6 @@
 const { addonBuilder } = require("stremio-addon-sdk");
 const fetch = require("node-fetch");
+const genreMapper = require("./catalog/genre-mapper"); // il tuo helper per mappare generi
 
 const manifest = {
     id: "org.raiplay",
@@ -15,7 +16,6 @@ const manifest = {
 
 const builder = new addonBuilder(manifest);
 
-// Catalogo
 builder.defineCatalogHandler(async ({ type, id, extra }) => {
     const searchQuery = extra && extra.search ? extra.search : "";
     const url = `https://www.raiplay.it/ricerca?json&q=${encodeURIComponent(searchQuery)}`;
@@ -24,15 +24,18 @@ builder.defineCatalogHandler(async ({ type, id, extra }) => {
         const res = await fetch(url);
         const data = await res.json();
 
-        const metas = data.results
-            .filter(item => (type === "tv" ? item.category === "Serie TV" : item.category !== "Serie TV"))
-            .map(item => ({
-                id: item.id,
-                type: item.category === "Serie TV" ? "tv" : "movie",
-                name: item.title,
-                poster: item.image || "",
-                description: item.description || ""
-            }));
+        // mappa il JSON RaiPlay in Stremio
+        let metas = data.results.map(item => ({
+            id: item.id,
+            type: item.category === "Serie TV" ? "tv" : "movie",
+            name: item.title,
+            poster: item.image || "",
+            description: item.description || "",
+            genres: genreMapper(item.category) // usa il tuo mapper
+        }));
+
+        // filtra per tipo richiesto
+        metas = metas.filter(m => m.type === type);
 
         return { metas };
     } catch (err) {
@@ -41,62 +44,7 @@ builder.defineCatalogHandler(async ({ type, id, extra }) => {
     }
 });
 
-// Meta dettagli (stagioni e episodi)
-builder.defineMetaHandler(async ({ type, id }) => {
-    try {
-        const jsonUrl = `https://www.raiplay.it/video/${id}.html?json`;
-        const res = await fetch(jsonUrl);
-        const data = await res.json();
-
-        if (type === "tv" && data && data.video && data.video.episodes) {
-            const seasons = {};
-            data.video.episodes.forEach(ep => {
-                const seasonNum = ep.season || 1;
-                if (!seasons[seasonNum]) seasons[seasonNum] = [];
-                seasons[seasonNum].push({
-                    id: ep.id,
-                    name: ep.title,
-                    episode: ep.episode || 1,
-                    season: seasonNum,
-                    poster: ep.image || "",
-                    description: ep.description || ""
-                });
-            });
-
-            const streams = Object.keys(seasons).map(season => ({
-                season: parseInt(season),
-                episodes: seasons[season]
-            }));
-
-            return {
-                meta: {
-                    id,
-                    type: "tv",
-                    name: data.video.title,
-                    poster: data.video.image || "",
-                    description: data.video.description || "",
-                    streams
-                }
-            };
-        } else {
-            return {
-                meta: {
-                    id,
-                    type: "movie",
-                    name: data.video.title,
-                    poster: data.video.image || "",
-                    description: data.video.description || ""
-                }
-            };
-        }
-    } catch (err) {
-        console.error("Errore meta RaiPlay:", err);
-        return { meta: null };
-    }
-});
-
-module.exports = builder.getInterface();        } catch (error) {
-            logger.error(`Errore nel recupero fiction RAI: ${error.message}`);
+module.exports = builder.getInterface();            logger.error(`Errore nel recupero fiction RAI: ${error.message}`);
             return [];
         }
     }
