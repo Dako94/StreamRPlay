@@ -26,14 +26,8 @@ fi
 
 # Verifica che tutti i file necessari esistano
 REQUIRED_FILES=(
-    "server.js"
+    "server-fixed.js"
     "manifest.js"
-    "auth/raiplay-auth.js"
-    "catalog/catalog-handler.js"
-    "stream/stream-handler.js"
-    "utils/config.js"
-    "utils/cache.js"
-    "utils/logger.js"
 )
 
 for file in "${REQUIRED_FILES[@]}"; do
@@ -87,13 +81,13 @@ echo "🎬 Avvio server RaiPlay Addon sulla porta $PORT..."
 # Controlla se dobbiamo usare PM2 per la produzione
 if [ "$NODE_ENV" = "production" ] && command -v pm2 &> /dev/null; then
     echo "🔄 Avvio con PM2..."
-    pm2 start server.js --name "raiplay-addon" --max-memory-restart 500M
+    pm2 start server-fixed.js --name "raiplay-addon" --max-memory-restart 500M
     pm2 logs raiplay-addon --follow
 else
     # Avvio standard con Node.js
-    node server.js &
+    node server-fixed.js &
     NODE_PID=$!
     
     # Attendi il processo
     wait $NODE_PID
-fi
+fifi
