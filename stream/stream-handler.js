@@ -1,5 +1,5 @@
 const { addonBuilder } = require("stremio-addon-sdk");
-const fetch = require("node-fetch");
+const videoExtractor = require("./stream/video-extractor"); // il tuo helper per estrarre stream
 
 const manifest = {
     id: "org.raiplay",
@@ -13,23 +13,10 @@ const builder = new addonBuilder(manifest);
 
 builder.defineStreamHandler(async ({ type, id }) => {
     try {
-        const jsonUrl = `https://www.raiplay.it/video/${id}.html?json`;
-        const res = await fetch(jsonUrl);
-        const data = await res.json();
+        // usa video-extractor per ottenere i link reali
+        const streams = await videoExtractor(id);
 
-        const streams = [];
-        if (data && data.video && data.video.sources) {
-            data.video.sources.forEach(source => {
-                if (source.url && (source.url.endsWith(".m3u8") || source.url.endsWith(".mpd"))) {
-                    streams.push({
-                        title: "RaiPlay Stream",
-                        url: source.url,
-                        isFree: true
-                    });
-                }
-            });
-        }
-
+        // streams deve essere un array di oggetti { title, url, isFree }
         return { streams };
     } catch (err) {
         console.error("Errore stream RaiPlay:", err);
