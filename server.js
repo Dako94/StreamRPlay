@@ -1,9 +1,6 @@
-const { addonBuilder } = require('stremio-addon-sdk');
+const addonSDK = require('stremio-addon-sdk');
 const express = require('express');
 const cors = require('cors');
-const rateLimit = require('express-rate-limit');
-const helmet = require('helmet');
-const compression = require('compression');
 
 // Import dei moduli dell'addon
 const manifest = require('./manifest');
@@ -15,7 +12,7 @@ const logger = require('./utils/logger');
 const cache = require('./utils/cache');
 
 // Inizializzazione addon
-const builder = new addonBuilder(manifest);
+const builder = new addonSDK.addonBuilder(manifest);
 
 // Middleware per logging delle richieste
 function requestLogger(req, res, next) {
@@ -136,21 +133,8 @@ builder.defineStreamHandler(async (args) => {
 // Configurazione Express
 const app = express();
 
-// Security middleware
-app.use(helmet(config.security.helmet));
-
-// Compression
-if (config.server.env === 'production') {
-    app.use(compression());
-}
-
 // CORS
 app.use(cors(config.server.cors));
-
-// Rate limiting
-const limiter = rateLimit(config.security.rateLimit);
-app.use('/catalog/', limiter);
-app.use('/stream/', limiter);
 
 // Request logging
 app.use(requestLogger);
