@@ -1,373 +1,158 @@
-const addonSDK = require('stremio-addon-sdk');
+const { addonBuilder } = require('stremio-addon-sdk');
 const express = require('express');
 const cors = require('cors');
-const axios = require('axios');
-const cheerio = require('cheerio');
 
-// Import dei moduli dell'addon
-const manifest = require('./manifest');
-const catalogHandler = require('./catalog/catalog-handler');
-const streamHandler = require('./stream/stream-handler');
-const auth = require('./auth/raiplay-auth');
-const config = require('./utils/config');
-const logger = require('./utils/logger');
-const cache = require('./utils/cache');
-
-// Inizializzazione addon
-const builder = new addonSDK.AddonBuilder(manifest);
-
-// Middleware per logging delle richieste
-function requestLogger(req, res, next) {
-    const start = Date.now();
-
-    res.on('finish', () => {
-        const duration = Date.now() - start;
-        logger.request(req.method, req.url, res.statusCode, duration);
-    });
-
-    next();
-}
-
-// Middleware per parsing configurazione utente
-function parseUserConfig(req, res, next) {
-    try {
-        const configStr = req.params.config || req.query.config;
-
-        if (configStr) {
-            try {
-                req.userConfig = JSON.parse(Buffer.from(configStr, 'base64').toString());
-                req.userId = req.userConfig.raiplay_email || 'anonymous';
-            } catch (parseError) {
-                logger.warn('Invalid user config format', { configStr });
-                req.userConfig = {};
-                req.userId = 'anonymous';
-            }
-        } else {
-            req.userConfig = {};
-            req.userId = 'anonymous';
+// Manifest semplificato
+const manifest = {
+    id: 'com.raiplay.stremio.addon',
+    version: '1.2.0',
+    name: 'RaiPlay Italiano',
+    description: 'Accedi a tutti i contenuti RaiPlay direttamente su Stremio',
+    logo: 'https://www.rai.it/dl/images/2021/12/17/1639751569406_rai-play.png',
+    
+    resources: ['catalog', 'stream'],
+    types: ['movie', 'series'],
+    
+    catalogs: [
+        {
+            type: 'series',
+            id: 'raiplay_series',
+            name: 'Serie TV RaiPlay',
+            extra: [{ name: 'skip', options: ['0'] }]
+        },
+        {
+            type: 'movie', 
+            id: 'raiplay_movies',
+            name: 'Film RaiPlay',
+            extra: [{ name: 'skip', options: ['0'] }]
         }
+    ]
+};
 
-        next();
-    } catch (error) {
-        logger.logError(error, 'parseUserConfig');
-        req.userConfig = {};
-        req.userId = 'anonymous';
-        next();
-    }
-}
+// Crea builder
+const builder = new addonBuilder(manifest);
 
-// Middleware per autenticazione automatica
-async function autoAuth(req, res, next) {
-    try {
-        const { raiplay_email, raiplay_password } = req.userConfig;
-
-        if (raiplay_email && raiplay_password && !auth.isAuthenticated(req.userId)) {
-            logger.info(`Attempting auto-login for user: ${req.userId}`);
-
-            const loginResult = await auth.login(raiplay_email, raiplay_password, req.userId);
-
-            if (loginResult.success) {
-                logger.auth('auto-login', req.userId, true);
-            } else {
-                logger.auth('auto-login', req.userId, false);
-            }
-        }
-
-        next();
-    } catch (error) {
-        logger.logError(error, 'autoAuth');
-        next();
-    }
-}
-
-// Handler per i cataloghi
+// Handler catalogo semplificato
 builder.defineCatalogHandler(async (args) => {
-    const startTime = Date.now();
-
+    console.log('Catalog request:', args);
+    
     try {
-        logger.info('Catalog request', args);
+        // Dati di esempio per ora
+        const metas = [
+            {
+                id: 'raiplay:test1',
+                type: args.type,
+                name: 'Il Commissario Montalbano',
+                poster: 'https://www.raiplay.it/cropgd/640x360/dl/images/2021/03/1615891603946_montalbano.jpg',
+                genres: ['Crime', 'Drama'],
+                description: 'Le avventure del commissario Montalbano'
+            },
+            {
+                id: 'raiplay:test2', 
+                type: args.type,
+                name: 'Doc - Nelle tue mani',
+                poster: 'https://www.raiplay.it/cropgd/640x360/dl/images/2021/03/1615891603947_doc.jpg',
+                genres: ['Drama', 'Medical'],
+                description: 'Serie TV medica italiana'
+            }
+        ];
 
-        const { type, id, extra = {} } = args;
-        const result = await catalogHandler.getCatalog(type, id, extra, 'anonymous');
-
-        const duration = Date.now() - startTime;
-        logger.performance('catalog', duration, { catalogId: id, itemCount: result.metas?.length || 0 });
-
-        return {
-            metas: result.metas || [],
-            cacheMaxAge: 3600 // 1 ora
-        };
+        return { metas };
     } catch (error) {
-        logger.logError(error, 'catalogHandler');
+        console.error('Catalog error:', error);
         return { metas: [] };
     }
 });
 
-// Handler per gli stream
+// Handler stream semplificato
 builder.defineStreamHandler(async (args) => {
-    const startTime = Date.now();
-
+    console.log('Stream request:', args);
+    
     try {
-        logger.info('Stream request', args);
+        // Per ora restituiamo un stream di test
+        const streams = [
+            {
+                url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
+                title: 'RaiPlay Stream (Test)',
+                behaviorHints: {
+                    notWebReady: true
+                }
+            }
+        ];
 
-        const { type, id } = args;
-        const userId = 'anonymous';
-
-        const result = await streamHandler.getStreams(type, id, {}, userId);
-
-        const duration = Date.now() - startTime;
-        logger.performance('stream', duration, {
-            streamId: id,
-            streamCount: result.streams?.length || 0
-        });
-
-        return {
-            streams: result.streams || [],
-            cacheMaxAge: 300 // 5 minuti
-        };
+        return { streams };
     } catch (error) {
-        logger.logError(error, 'streamHandler');
+        console.error('Stream error:', error);
         return { streams: [] };
     }
 });
 
-// === HANDLER PER I METADATI (AGGIUNTO) ===
-builder.defineMetaHandler(async (args) => {
-    const startTime = Date.now();
+// Configurazione server Express
+const app = express();
 
-    try {
-        logger.info('Meta request', args);
+// CORS semplice
+app.use(cors({
+    origin: '*',
+    methods: ['GET', 'POST', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization']
+}));
 
-        const { type, id } = args;
-        const metaData = await getMetaDataFromRaiPlay(type, id);
-
-        if (!metaData) {
-            logger.warn(`Meta not found for ${type}: ${id}`);
-            return { meta: null };
-        }
-
-        const duration = Date.now() - startTime;
-        logger.performance('meta', duration, { metaId: id });
-
-        return {
-            meta: metaData,
-            cacheMaxAge: 3600 // 1 ora
-        };
-    } catch (error) {
-        logger.logError(error, 'metaHandler');
-        return { meta: null };
-    }
+// Logging semplice
+app.use((req, res, next) => {
+    console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
+    next();
 });
 
-// Funzione per recuperare i metadati da RaiPlay
-async function getMetaDataFromRaiPlay(type, id) {
-    try {
-        const url = `https://www.raiplay.it/programmi/${id}`;
-        const response = await axios.get(url, {
-            headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-            }
-        });
-        const $ = cheerio.load(response.data);
+// Mount dell'addon
+app.use('/', builder.getInterface());
 
-        const name = $('h1').text().trim();
-        const description = $('meta[name="description"]').attr('content');
-        const poster = $('meta[property="og:image"]').attr('content');
-        const background = poster;
-
-        if (type === 'movie') {
-            return {
-                id: id,
-                type: 'movie',
-                name: name,
-                poster: poster,
-                background: background,
-                description: description,
-                releaseInfo: '2023', // Esempio: da personalizzare
-                runtime: 120, // Esempio: da personalizzare
-                genres: ['Drammatico'], // Esempio: da personalizzare
-            };
-        } else if (type === 'series') {
-            return {
-                id: id,
-                type: 'series',
-                name: name,
-                poster: poster,
-                background: background,
-                description: description,
-                episodes: [], // Da popolare con episodi reali
-            };
-        } else if (type === 'channel') {
-            return {
-                id: id,
-                type: 'channel',
-                name: name,
-                logo: poster,
-                description: description,
-            };
-        } else {
-            return null;
-        }
-    } catch (error) {
-        logger.logError(error, 'getMetaDataFromRaiPlay');
-        return null;
-    }
-}
-
-// Configurazione Express
-const app = express();
-// CORS
-app.use(cors(config.server.cors));
-// Request logging
-app.use(requestLogger);
-// Body parsing
-app.use(express.json({ limit: '1mb' }));
-app.use(express.urlencoded({ extended: true, limit: '1mb' }));
-// Middleware personalizzati
-app.use(parseUserConfig);
-app.use(autoAuth);
-// === MONTA L'INTERFACCIA DELL'ADDON (DOPO TUTTI GLI HANDLER) ===
-const { getRouter } = require('stremio-addon-sdk');
-app.use('/', getRouter(builder));
-
-// Route aggiuntive
 // Health check
 app.get('/health', (req, res) => {
-    const stats = cache.getStats();
-    const memUsage = process.memoryUsage();
-
-    const health = {
+    res.json({
         status: 'healthy',
         timestamp: new Date().toISOString(),
-        uptime: process.uptime(),
-        version: require('./package.json').version,
-        cache: stats,
-        memory: {
-            rss: Math.round(memUsage.rss / 1024 / 1024) + 'MB',
-            heapTotal: Math.round(memUsage.heapTotal / 1024 / 1024) + 'MB',
-            heapUsed: Math.round(memUsage.heapUsed / 1024 / 1024) + 'MB'
-        }
-    };
-
-    logger.health('healthy', health);
-    res.json(health);
-});
-
-// Statistiche addon
-app.get('/stats', (req, res) => {
-    const stats = {
-        cache: cache.getStats(),
-        sessions: auth.sessions ? auth.sessions.size : 0,
-        uptime: process.uptime(),
-        memory: process.memoryUsage()
-    };
-
-    res.json(stats);
-});
-
-// Pulizia cache manuale
-app.post('/admin/clear-cache', (req, res) => {
-    cache.clear();
-    logger.info('Cache cleared manually');
-    res.json({ message: 'Cache cleared successfully' });
-});
-
-// Test autenticazione
-app.post('/admin/test-auth', async (req, res) => {
-    const { email, password } = req.body;
-
-    if (!email || !password) {
-        return res.status(400).json({ error: 'Email and password required' });
-    }
-
-    try {
-        const result = await auth.login(email, password, 'test-user');
-        res.json(result);
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
-
-// Route per configurazione dinamica
-app.get('/configure/:config?', (req, res) => {
-    const baseUrl = `${req.protocol}://${req.get('host')}`;
-    const configParam = req.params.config ? `/${req.params.config}` : '';
-
-    const configManifest = {
-        ...manifest,
-        behaviorHints: {
-            ...manifest.behaviorHints,
-            configurationRequired: true
-        }
-    };
-
-    res.json(configManifest);
-});
-
-// Gestione errori globale
-app.use((err, req, res, next) => {
-    logger.logError(err, 'globalErrorHandler');
-
-    res.status(500).json({
-        error: 'Internal server error',
-        message: config.server.env === 'development' ? err.message : 'Something went wrong'
+        uptime: process.uptime()
     });
+});
+
+// Test route
+app.get('/test', (req, res) => {
+    res.json({
+        message: 'RaiPlay Addon funzionante!',
+        manifest: manifest
+    });
+});
+
+// Error handler
+app.use((err, req, res, next) => {
+    console.error('Error:', err);
+    res.status(500).json({ error: 'Internal server error' });
 });
 
 // 404 handler
 app.use('*', (req, res) => {
-    logger.warn(`404 - Route not found: ${req.originalUrl}`);
     res.status(404).json({ error: 'Route not found' });
 });
 
-// Graceful shutdown
-process.on('SIGTERM', gracefulShutdown);
-process.on('SIGINT', gracefulShutdown);
-function gracefulShutdown(signal) {
-    logger.info(`Received ${signal}, starting graceful shutdown...`);
-
-    server.close((err) => {
-        if (err) {
-            logger.logError(err, 'server.close');
-            process.exit(1);
-        }
-
-        cache.clear();
-        logger.info('Graceful shutdown completed');
-        process.exit(0);
-    });
-
-    setTimeout(() => {
-        logger.error('Forced shutdown after timeout');
-        process.exit(1);
-    }, 30000);
-}
-
-// Gestione errori non catturati
-process.on('uncaughtException', (err) => {
-    logger.logError(err, 'uncaughtException');
-    process.exit(1);
-});
-process.on('unhandledRejection', (reason, promise) => {
-    logger.error('Unhandled Rejection at Promise', { reason, promise });
-    process.exit(1);
-});
-
 // Avvio server
-const PORT = config.server.port;
-const HOST = config.server.host;
-const server = app.listen(PORT, HOST, () => {
-    logger.info(`🚀 RaiPlay Addon running on ${HOST}:${PORT}`);
-    logger.info(`📺 Manifest URL: http://${HOST}:${PORT}/manifest.json`);
-    logger.info(`🌍 Environment: ${config.server.env}`);
-    logger.info(`📊 Health check: http://${HOST}:${PORT}/health`);
+const PORT = process.env.PORT || 3000;
+const HOST = process.env.HOST || '0.0.0.0';
 
-    logger.info('Configuration loaded', {
-        cacheEnabled: config.cache.cleanup.enabled,
-        authEnabled: true,
-        loggingLevel: config.logging.level
-    });
+app.listen(PORT, HOST, () => {
+    console.log(`🚀 RaiPlay Addon running on ${HOST}:${PORT}`);
+    console.log(`📺 Manifest URL: http://${HOST}:${PORT}/manifest.json`);
+    console.log(`🏥 Health check: http://${HOST}:${PORT}/health`);
 });
 
-// Export per testing
+// Graceful shutdown
+process.on('SIGTERM', () => {
+    console.log('SIGTERM received, shutting down gracefully');
+    process.exit(0);
+});
+
+process.on('SIGINT', () => {
+    console.log('SIGINT received, shutting down gracefully');
+    process.exit(0);
+});
+
 module.exports = app;
