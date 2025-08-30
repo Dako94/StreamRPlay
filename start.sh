@@ -19,8 +19,8 @@ fi
 echo "📦 Node.js versione: $(node --version)"
 
 # Verifica file principale
-if [ ! -f "server-ultra-simple.js" ]; then
-    echo "❌ File server-ultra-simple.js non trovato"
+if [ ! -f "server-clean.js" ]; then
+    echo "❌ File server-clean.js non trovato"
     exit 1
 fi
 
@@ -28,4 +28,4 @@ echo "✅ Tutti i file necessari presenti"
 
 # Avvia l'applicazione
 echo "🎬 Avvio server sulla porta $PORT..."
-node server-ultra-simple.js
+node server-clean.js
