@@ -227,7 +227,8 @@ app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 app.use(parseUserConfig);
 app.use(autoAuth);
 // === MONTA L'INTERFACCIA DELL'ADDON (DOPO TUTTI GLI HANDLER) ===
-app.use('/', builder.getInterface());
+const { getRouter } = require('stremio-addon-sdk');
+app.use('/', getRouter(builder));
 
 // Route aggiuntive
 // Health check
