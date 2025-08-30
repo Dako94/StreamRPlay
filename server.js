@@ -305,7 +305,7 @@ const cheerio = require('cheerio');
 
 async function getMetaDataFromRaiPlay(type, id) {
     try {
-        const url = `https://www.raiplay.it/programmi/${id}`;
+        const url = `https://www.raiplay.it/${id}`;
         const response = await axios.get(url);
         const $ = cheerio.load(response.data);
 
