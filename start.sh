@@ -26,7 +26,7 @@ fi
 
 # Verifica che tutti i file necessari esistano
 REQUIRED_FILES=(
-    "server-fixed.js"
+    "server.js"
     "manifest.js"
 )
 
