@@ -1,102 +1,50 @@
-const axios = require('axios');
-const cheerio = require('cheerio');
-const auth = require('../auth/raiplay-auth');
-const cache = require('../utils/cache');
-const logger = require('../utils/logger');
-const genreMapper = require('./genre-mapper');
+const axios = require("axios");
+const cheerio = require("cheerio");
 
-class CatalogHandler {
-    constructor() {
-        this.baseUrl = 'https://www.raiplay.it';
-        this.apiUrl = 'https://www.raiplay.it/api';
-        this.cacheTimeout = 3600000; // 1 ora in millisecondi
-    }
+async function searchRaiPlay(query) {
+  try {
+    const url = `https://www.raiplay.it/ricerca.html?q=${encodeURIComponent(query)}`;
+    const response = await axios.get(url, {
+      headers: { "User-Agent": "Mozilla/5.0" }
+    });
 
-    // Ottieni tutti i cataloghi disponibili
-    async getCatalog(type, catalogId, extra = {}, userId = 'default') {
-        const cacheKey = `catalog_${catalogId}_${type}_${JSON.stringify(extra)}`;
-        
-        // Controlla cache
-        const cached = cache.get(cacheKey);
-        if (cached) {
-            logger.info(`Cache hit per catalogo: ${catalogId}`);
-            return cached;
-        }
+    const $ = cheerio.load(response.data);
+    const metas = [];
 
-        try {
-            let metas = [];
+    $(".search-result__item").each((i, el) => {
+      const title = $(el).find(".search-result__title").text().trim();
+      const desc = $(el).find(".search-result__description").text().trim();
+      const poster = $(el).find("img").attr("src");
+      const href = $(el).find("a").attr("href"); // es: /programmi/pocoyo
+      const id = href ? href.replace("/programmi/", "").replace(".html", "") : null;
 
-            switch (catalogId) {
-                case 'raiplay_series_popolari':
-                    metas = await this.getPopularSeries(extra);
-                    break;
-                case 'raiplay_series_nuove':
-                    metas = await this.getNewSeries(extra);
-                    break;
-                case 'raiplay_fiction_rai':
-                    metas = await this.getRaiFiction(extra);
-                    break;
-                case 'raiplay_film_cinema':
-                    metas = await this.getCinemaMovies(extra);
-                    break;
-                case 'raiplay_film_tv':
-                    metas = await this.getTvMovies(extra);
-                    break;
-                case 'raiplay_documentari':
-                    metas = await this.getDocumentaries(extra);
-                    break;
-                case 'raiplay_programmi_intrattenimento':
-                    metas = await this.getEntertainmentShows(extra);
-                    break;
-                case 'raiplay_programmi_bambini':
-                    metas = await this.getKidsShows(extra);
-                    break;
-                case 'raiplay_programmi_culturali':
-                    metas = await this.getCulturalShows(extra);
-                    break;
-                case 'raiplay_live':
-                    metas = await this.getLiveChannels(extra);
-                    break;
-                default:
-                    logger.warn(`Catalogo sconosciuto: ${catalogId}`);
-            }
+      if (id) {
+        metas.push({
+          id,
+          type: "series", // in RaiPlay la maggior parte è “serie”, ma puoi cambiare se serve
+          name: title,
+          description: desc,
+          poster: poster ? `https:${poster}` : null
+        });
+      }
+    });
 
-            const result = { metas };
-            cache.set(cacheKey, result, this.cacheTimeout);
-            
-            return result;
+    return metas;
+  } catch (err) {
+    console.error("Errore in searchRaiPlay:", err.message);
+    return [];
+  }
+}
 
-        } catch (error) {
-            logger.error(`Errore nel recupero catalogo ${catalogId}: ${error.message}`);
-            return { metas: [] };
-        }
-    }
+async function getCatalog(type, id, extra, userId) {
+  if (id === "raiplay_search" && extra.search) {
+    const results = await searchRaiPlay(extra.search);
+    return { metas: results };
+  }
+  return { metas: [] };
+}
 
-    // Serie TV popolari
-    async getPopularSeries(extra = {}) {
-        const url = `${this.apiUrl}/recommends?type=SeriesContainer&genre=${extra.genre || 'all'}`;
-        const skip = parseInt(extra.skip) || 0;
-        
-        try {
-            const response = await axios.get(url, {
-                headers: auth.getAuthenticatedHeaders(),
-                timeout: 10000
-            });
-
-            return this.parseRecommendations(response.data, 'series', skip);
-        } catch (error) {
-            logger.error(`Errore nel recupero serie popolari: ${error.message}`);
-            return [];
-        }
-    }
-
-    // Nuove serie
-    async getNewSeries(extra = {}) {
-        const url = `${this.apiUrl}/menu/programmi-nuovi`;
-        const skip = parseInt(extra.skip) || 0;
-        
-        try {
-            const response = await axios.get(url, {
+module.exports = { getCatalog };            const response = await axios.get(url, {
                 headers: auth.getAuthenticatedHeaders(),
                 timeout: 10000
             });
