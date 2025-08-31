@@ -1,44 +1,42 @@
+require('dotenv').config(); // carica .env
 const { addonBuilder, serveHTTP } = require('stremio-addon-sdk');
-const catalogHandler = require('./catalog/catalog-handler');
-const streamHandler = require('./stream/stream-handler');
+const catalogHandler = require('./catalog/catalog-handler'); // TMDb catalog
+const streamHandler = require('./stream/stream-handler');     // RaiPlay stream
 
 const manifest = {
     id: 'com.raiplay.stremio.addon',
-    version: '1.2.0',
+    version: '1.4.0',
     name: 'RaiPlay Italiano',
-    description: 'Accedi a tutti i contenuti RaiPlay direttamente su Stremio',
+    description: 'Catalogo TMDb + Stream RaiPlay',
     logo: 'https://www.rai.it/dl/images/2021/12/17/1639751569406_rai-play.png',
-    resources: ['catalog', 'stream', 'meta'], // meta aggiunto
+    resources: ['catalog', 'stream', 'meta'],
     types: ['movie', 'series'],
     catalogs: [
-        { type: 'series', id: 'raiplay_series', name: 'Serie TV RaiPlay' },
-        { type: 'movie', id: 'raiplay_movies', name: 'Film RaiPlay' }
+        { type: 'series', id: 'tmdb_series', name: 'Serie TV TMDb' },
+        { type: 'movie', id: 'tmdb_movies', name: 'Film TMDb' }
     ]
 };
 
 const builder = new addonBuilder(manifest);
 
-// Catalogo dinamico
+// Catalogo TMDb
 builder.defineCatalogHandler(catalogHandler);
 
-// Stream dinamico
+// Stream RaiPlay
 builder.defineStreamHandler(streamHandler);
 
-// Meta handler minimo per evitare errori
-builder.defineMetaHandler(async (args) => {
-    return {
-        meta: {
-            id: args.id,
-            name: args.id,
-            poster: '',       // opzionale
-            description: ''   // opzionale
-        }
-    };
-});
+// Meta handler minimo
+builder.defineMetaHandler(async (args) => ({
+    meta: {
+        id: args.id,
+        name: args.id,
+        poster: '',
+        description: ''
+    }
+}));
 
 const PORT = process.env.PORT || 3000;
 
-// Usa serveHTTP se disponibile
 if (serveHTTP) {
     serveHTTP(builder.getInterface(), { port: PORT });
 } else {
