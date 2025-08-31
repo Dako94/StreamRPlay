@@ -3,7 +3,10 @@ const axios = require('axios');
 module.exports = async function videoExtractor(id) {
     try {
         const url = `https://www.raiplay.it/video/${id}.html?json`;
-        const res = await axios.get(url);
+
+        const res = await axios.get(url, {
+            headers: { 'User-Agent': 'Mozilla/5.0', 'Accept': 'application/json' }
+        });
         const data = res.data;
 
         if (!data.video || !data.video.sources) return [];
