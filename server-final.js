@@ -1,13 +1,13 @@
 require('dotenv').config();
 const { addonBuilder, serveHTTP } = require('stremio-addon-sdk');
-const catalogHandler = require('./catalog/catalog-handler'); // TMDb catalog
-const streamHandler = require('./stream/stream-handler');     // RaiPlay stream automatico
+const catalogHandler = require('./catalog/catalog-handler'); // TMDb
+const streamHandler = require('./stream/stream-handler');     // RaiPlay automatico
 
 const manifest = {
     id: 'com.raiplay.stremio.addon',
-    version: '1.6.0',
+    version: '1.7.0',
     name: 'RaiPlay Italiano',
-    description: 'Catalogo TMDb + Stream RaiPlay automatici',
+    description: 'Catalogo TMDb + Stream RaiPlay automatici con login',
     logo: 'https://www.rai.it/dl/images/2021/12/17/1639751569406_rai-play.png',
     resources: ['catalog', 'stream', 'meta'],
     types: ['movie', 'series'],
@@ -25,7 +25,6 @@ builder.defineCatalogHandler(catalogHandler);
 // Meta handler automatico
 builder.defineMetaHandler(async (args) => {
     const title = args.extra?.name || args.id.split(':')[1] || args.id;
-
     return {
         meta: {
             id: title,       // lo stream handler userà il titolo per cercare su RaiPlay
@@ -36,7 +35,7 @@ builder.defineMetaHandler(async (args) => {
     };
 });
 
-// Stream handler automatico
+// Stream handler automatico con login
 builder.defineStreamHandler(streamHandler);
 
 const PORT = process.env.PORT || 3000;
