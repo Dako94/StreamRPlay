@@ -2,6 +2,7 @@ const videoExtractor = require('./video-extractor');
 
 module.exports = async function streamHandler(args) {
     try {
+        // args.id viene dal catalogo
         const streams = await videoExtractor(args.id);
         return { streams };
     } catch (err) {
