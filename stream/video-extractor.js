@@ -1,102 +1,27 @@
 const axios = require('axios');
-const cheerio = require('cheerio');
-const auth = require('../auth/raiplay-auth');
-const logger = require('../utils/logger');
 
-class VideoExtractor {
-    constructor() {
-        this.baseUrl = 'https://www.raiplay.it';
-        this.mediaUrl = 'https://mediapolis.rai.it';
-        this.relinkerUrl = 'https://mediapolis.rai.it/relinker/relinkerServlet.htm';
+module.exports = async function videoExtractor(id) {
+    try {
+        const url = `https://www.raiplay.it/video/${id}.html?json`;
+        const res = await axios.get(url);
+        const data = res.data;
+
+        if (!data.video || !data.video.sources) return [];
+
+        const streams = data.video.sources
+            .filter(s => s.url?.endsWith('.m3u8') || s.url?.endsWith('.mpd'))
+            .map(s => ({
+                title: 'RaiPlay Stream',
+                url: s.url,
+                isFree: true
+            }));
+
+        return streams;
+    } catch (err) {
+        console.error('Errore video-extractor:', err);
+        return [];
     }
-
-    // Estrae flussi video per contenuti on-demand
-    async extractVideoStreams(raiplayId, config = {}, userId = 'default') {
-        try {
-            logger.info(`Extracting video streams for: ${raiplayId}`);
-
-            // Prima prova con l'API
-            let streams = await this.extractFromAPI(raiplayId, userId);
-            
-            // Se l'API fallisce, prova con scraping HTML
-            if (!streams || streams.length === 0) {
-                streams = await this.extractFromHTML(raiplayId, userId);
-            }
-
-            // Se ancora nulla, prova metodi alternativi
-            if (!streams || streams.length === 0) {
-                streams = await this.extractFromRelinker(raiplayId, userId);
-            }
-
-            return this.processStreams(streams, config);
-
-        } catch (error) {
-            logger.logError(error, `extractVideoStreams:${raiplayId}`);
-            return [];
-        }
-    }
-
-    // Estrazione tramite API RaiPlay
-    async extractFromAPI(raiplayId, userId) {
-        try {
-            // URL dell'API per ottenere informazioni video
-            const apiUrls = [
-                `${this.baseUrl}/api/media/${raiplayId}`,
-                `${this.baseUrl}/api/video/${raiplayId}`,
-                `${this.baseUrl}/api/program/${raiplayId}`
-            ];
-
-            for (const apiUrl of apiUrls) {
-                try {
-                    const response = await axios.get(apiUrl, {
-                        headers: auth.getAuthenticatedHeaders(userId),
-                        timeout: 10000
-                    });
-
-                    if (response.data) {
-                        const streams = this.parseAPIResponse(response.data);
-                        if (streams.length > 0) {
-                            logger.info(`API extraction successful: ${apiUrl}`);
-                            return streams;
-                        }
-                    }
-                } catch (apiError) {
-                    logger.debug(`API URL failed: ${apiUrl}`, { error: apiError.message });
-                }
-            }
-
-            return [];
-        } catch (error) {
-            logger.logError(error, 'extractFromAPI');
-            return [];
-        }
-    }
-
-    // Parsing risposta API
-    parseAPIResponse(data) {
-        const streams = [];
-
-        try {
-            // Vari formati possibili di risposta API
-            if (data.video && data.video.content_url) {
-                streams.push({
-                    url: data.video.content_url,
-                    title: 'RaiPlay Stream',
-                    quality: this.extractQualityFromUrl(data.video.content_url)
-                });
-            }
-
-            if (data.mediaUri) {
-                streams.push({
-                    url: data.mediaUri,
-                    title: 'RaiPlay Stream',
-                    quality: this.extractQualityFromUrl(data.mediaUri)
-                });
-            }
-
-            if (data.streams && Array.isArray(data.streams)) {
-                for (const stream of data.streams) {
-                    if (stream.url) {
+};                    if (stream.url) {
                         streams.push({
                             url: stream.url,
                             title: stream.title || 'RaiPlay Stream',
