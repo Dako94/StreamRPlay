@@ -22,7 +22,7 @@ module.exports = async function catalogHandler(args) {
             name: item.title || item.name,
             poster: item.poster_path ? `https://image.tmdb.org/t/p/w500${item.poster_path}` : '',
             description: item.overview || '',
-            genres: [] // opzionale, puoi mappare da item.genre_ids
+            genres: []
         }));
 
         return { metas };
