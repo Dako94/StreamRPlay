@@ -8,7 +8,7 @@ const manifest = {
     name: 'RaiPlay Italiano',
     description: 'Accedi a tutti i contenuti RaiPlay direttamente su Stremio',
     logo: 'https://www.rai.it/dl/images/2021/12/17/1639751569406_rai-play.png',
-    resources: ['catalog', 'stream'],  // non serve 'meta' qui
+    resources: ['catalog', 'stream', 'meta'], // meta aggiunto
     types: ['movie', 'series'],
     catalogs: [
         { type: 'series', id: 'raiplay_series', name: 'Serie TV RaiPlay' },
@@ -24,19 +24,21 @@ builder.defineCatalogHandler(catalogHandler);
 // Stream dinamico
 builder.defineStreamHandler(streamHandler);
 
-// Meta handler minimo per evitare errori Stremio
+// Meta handler minimo per evitare errori
 builder.defineMetaHandler(async (args) => {
     return {
         meta: {
             id: args.id,
-            name: args.id
+            name: args.id,
+            poster: '',       // opzionale
+            description: ''   // opzionale
         }
     };
 });
 
 const PORT = process.env.PORT || 3000;
 
-// ServeHTTP se disponibile
+// Usa serveHTTP se disponibile
 if (serveHTTP) {
     serveHTTP(builder.getInterface(), { port: PORT });
 } else {
