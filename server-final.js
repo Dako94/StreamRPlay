@@ -1,13 +1,13 @@
 require('dotenv').config();
 const { addonBuilder, serveHTTP } = require('stremio-addon-sdk');
 const catalogHandler = require('./catalog/catalog-handler'); // TMDb catalog
-const videoExtractor = require('./stream/video-extractor');
+const streamHandler = require('./stream/stream-handler');     // RaiPlay stream automatico
 
 const manifest = {
     id: 'com.raiplay.stremio.addon',
-    version: '1.5.0',
+    version: '1.6.0',
     name: 'RaiPlay Italiano',
-    description: 'Catalogo TMDb + Stream RaiPlay',
+    description: 'Catalogo TMDb + Stream RaiPlay automatici',
     logo: 'https://www.rai.it/dl/images/2021/12/17/1639751569406_rai-play.png',
     resources: ['catalog', 'stream', 'meta'],
     types: ['movie', 'series'],
@@ -22,35 +22,22 @@ const builder = new addonBuilder(manifest);
 // Catalogo TMDb
 builder.defineCatalogHandler(catalogHandler);
 
-// Meta handler: mappa ID TMDb → ID RaiPlay
+// Meta handler automatico
 builder.defineMetaHandler(async (args) => {
-    // args.id = "movie:1234" oppure "series:5678"
-    const [type, tmdbId] = args.id.split(':');
-
-    // Per test → ID di un video reale di RaiPlay
-    // In futuro puoi creare un mapping TMDbID → RaiPlayID
-    const raiplayId = '2011/01/pocoyo-s1e1-hush-xxxxxx';
+    const title = args.extra?.name || args.id.split(':')[1] || args.id;
 
     return {
         meta: {
-            id: raiplayId,          // Stremio userà questo ID per stream handler
-            name: `Test video ${tmdbId}`,
-            poster: '',              // opzionale
-            description: 'Descrizione test',  // opzionale
+            id: title,       // lo stream handler userà il titolo per cercare su RaiPlay
+            name: title,
+            poster: '',
+            description: ''
         }
     };
 });
 
-// Stream handler: prende ID dal meta handler e restituisce flussi RaiPlay
-builder.defineStreamHandler(async (args) => {
-    try {
-        const streams = await videoExtractor(args.id);
-        return { streams };
-    } catch (err) {
-        console.error('Errore stream handler:', err);
-        return { streams: [] };
-    }
-});
+// Stream handler automatico
+builder.defineStreamHandler(streamHandler);
 
 const PORT = process.env.PORT || 3000;
 
